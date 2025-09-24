@@ -25,6 +25,8 @@
     .price .val{font-size:28px;font-weight:700}
     .price .chg{font-size:12px}
 
+    canvas{max-width:100%;height:160px !important;}
+
     /* Footer */
     footer{text-align:center;color:var(--muted);font-size:12px}
 
@@ -44,6 +46,7 @@
     .field input, .field select{padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
     .btn{padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:#042022;font-weight:700}
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div class="wrap">
@@ -80,6 +83,7 @@
         </div>
         <div style="height:10px"></div>
         <div id="prices" style="display:flex;flex-direction:column;gap:8px"></div>
+        <canvas id="btcChart"></canvas>
       </section>
 
       <section class="card" style="grid-column:1/3;display:flex;flex-direction:column;gap:8px;align-items:stretch">
@@ -112,6 +116,14 @@
         <label>Temperature unit</label>
         <select id="tempUnit"><option value="C">Celsius</option><option value="F">Fahrenheit</option></select>
       </div>
+      <div class="field">
+        <label>BTC chart range</label>
+        <select id="btcRange">
+          <option value="1">24h</option>
+          <option value="7">7d</option>
+          <option value="30">30d</option>
+        </select>
+      </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
         <button class="btn" id="save">Save</button>
         <button class="btn" id="close">Close</button>
@@ -125,7 +137,8 @@
     const defaults = {
       latlon: localStorage.latlon || '49.1951,16.6068',
       refresh: Number(localStorage.refresh) || 30,
-      tempUnit: localStorage.tempUnit || 'C'
+      tempUnit: localStorage.tempUnit || 'C',
+      btcRange: localStorage.btcRange || '1'
     };
 
     // Elements
@@ -138,6 +151,9 @@
     const summaryEl = document.getElementById('summary');
     const updatedAtEl = document.getElementById('updatedAt');
     const refreshLabel = document.getElementById('refreshLabel');
+    const btcChartEl = document.getElementById('btcChart');
+
+    let btcChart;
 
     // Settings UI
     const settings = document.getElementById('settings');
@@ -147,6 +163,7 @@
     document.getElementById('latlon').value = defaults.latlon;
     document.getElementById('refresh').value = defaults.refresh;
     document.getElementById('tempUnit').value = defaults.tempUnit;
+    document.getElementById('btcRange').value = defaults.btcRange;
     refreshLabel.textContent = defaults.refresh + 's';
 
     gear.addEventListener('click', ()=> settings.style.display = 'flex');
@@ -155,9 +172,11 @@
       const latlon = document.getElementById('latlon').value.trim();
       const refresh = Number(document.getElementById('refresh').value) || 30;
       const tempUnit = document.getElementById('tempUnit').value;
+      const btcRange = document.getElementById('btcRange').value;
       localStorage.latlon = latlon;
       localStorage.refresh = refresh;
       localStorage.tempUnit = tempUnit;
+      localStorage.btcRange = btcRange;
       refreshLabel.textContent = refresh + 's';
       settings.style.display = 'none';
       start();
@@ -183,13 +202,23 @@
       return res.json();
     }
 
+    async function fetchBTCChart(days){
+      const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('BTC chart fetch failed');
+      return res.json();
+    }
+
     // Renderers
     async function renderAll(){
       try{
         const [lat,lon] = (localStorage.latlon||defaults.latlon).split(',').map(s=>s.trim());
+        const btcRange = localStorage.btcRange || defaults.btcRange;
         const weatherP = fetchWeather(lat,lon);
         const btcP = fetchBTC();
-        const [weather, btc] = await Promise.all([weatherP, btcP]);
+        const btcChartP = fetchBTCChart(btcRange);
+
+        const [weather, btc, btcChartData] = await Promise.all([weatherP, btcP, btcChartP]);
 
         // Weather
         if(weather && weather.current_weather){
@@ -218,7 +247,7 @@
           }
         }
 
-        // BTC
+        // BTC price
         pricesEl.innerHTML='';
         if(btc && btc.bitcoin){
           const btcUSD = btc.bitcoin.usd;
@@ -228,9 +257,21 @@
           pricesEl.appendChild(wrap);
         }
 
+        // BTC chart
+        if(btcChartData && btcChartData.prices){
+          const labels = btcChartData.prices.map(p=> new Date(p[0]).toLocaleDateString()+" "+new Date(p[0]).toLocaleTimeString());
+          const data = btcChartData.prices.map(p=> p[1]);
+          if(btcChart){ btcChart.destroy(); }
+          btcChart = new Chart(btcChartEl, {
+            type: 'line',
+            data: {labels: labels, datasets:[{label:'BTC/USD', data: data, borderColor:'#4fd1c5', backgroundColor:'rgba(79,209,197,0.2)', pointRadius:0, fill:true}]},
+            options: {responsive:true, plugins:{legend:{display:false}}, scales:{x:{display:false},y:{display:true}}}
+          });
+        }
+
         // Summary
         updatedAtEl.textContent = 'Updated: ' + nowISO();
-        summaryEl.textContent = `Weather: ${tempEl.textContent} · BTC: ${pricesEl.firstChild?pricesEl.firstChild.querySelector('.val').textContent:'-'}`;
+        summaryEl.textContent = `Weather: ${tempEl.textContent} · BTC: ${pricesEl.firstChild?pricesEl.firstChild.querySelector('.val').textContent:'-'} · Range: ${btcRange}d`;
       }catch(err){
         console.error(err);
         summaryEl.textContent = 'Error: ' + (err.message||err);
