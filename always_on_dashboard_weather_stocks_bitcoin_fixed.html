@@ -193,14 +193,7 @@
       return res.json();
     }
 
-    async function fetchQuotes(symbols){
-      const q = encodeURIComponent(symbols.join(','));
-      const proxy = "https://corsproxy.io/?";
-      const url = proxy + encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${q}`);
-      const res = await fetch(url);
-      if(!res.ok) throw new Error('Quotes fetch failed');
-      return res.json();
-    }
+   
 
     // Renderers
     async function renderAll(){
@@ -209,7 +202,7 @@
         const stocks = (localStorage.stocks||defaults.stocks).split(',').map(s=>s.trim()).filter(Boolean);
         const weatherP = fetchWeather(lat,lon);
         const btcP = fetchBTC();
-        const quotesP = stocks.length? fetchQuotes(stocks) : Promise.resolve(null);
+
 
         const [weather, btc, quotes] = await Promise.all([weatherP, btcP, quotesP]);
 
