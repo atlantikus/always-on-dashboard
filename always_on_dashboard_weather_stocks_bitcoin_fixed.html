@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Always-on Dashboard — Weather · Stocks · Bitcoin</title>
+  <style>
+    :root{--bg:#0b1220;--card:#0f1724;--muted:#9aa6b2;--accent:#4fd1c5}
+    html,body{height:100%;margin:0;background:var(--bg);color:#e6eef6;font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    .wrap{display:grid;grid-template-rows:auto 1fr;gap:8px;padding:12px;height:100%;box-sizing:border-box}
+    header{display:flex;align-items:center;justify-content:space-between}
+    h1{font-size:16px;margin:0}
+    .info{font-size:12px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:stretch}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.6);min-height:100px}
+
+    /* Weather */
+    .weather .big{font-size:40px;font-weight:700}
+    .weather .small{font-size:14px;color:var(--muted)}
+    .row{display:flex;gap:12px;align-items:center}
+
+    /* Prices */
+    .price{display:flex;flex-direction:column;align-items:flex-start}
+    .price .sym{font-size:12px;color:var(--muted)}
+    .price .val{font-size:28px;font-weight:700}
+    .price .chg{font-size:12px}
+
+    /* Footer */
+    footer{text-align:center;color:var(--muted);font-size:12px}
+
+    /* Small-screen tweaks */
+    @media (max-width:420px){
+      .grid{grid-template-columns:1fr;}
+      .weather .big{font-size:32px}
+      .price .val{font-size:22px}
+    }
+
+    /* Settings overlay */
+    .gear{background:transparent;border:0;color:var(--muted);font-size:18px}
+    #settings{position:fixed;inset:0;background:rgba(2,6,23,0.7);display:none;align-items:center;justify-content:center}
+    .panel{background:var(--card);padding:16px;border-radius:10px;width:92%;max-width:520px}
+    .field{display:flex;flex-direction:column;margin-bottom:8px}
+    .field label{font-size:12px;color:var(--muted);margin-bottom:6px}
+    .field input, .field textarea{padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+    .btn{padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:#042022;font-weight:700}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Weather · Stocks · Bitcoin</h1>
+        <div class="info">Auto-refresh: <span id="refreshLabel">30s</span> · Tap ⚙ to change</div>
+      </div>
+      <div>
+        <button class="gear" id="gear">⚙</button>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="card weather" id="weatherCard">
+        <div class="row" style="justify-content:space-between">
+          <div>
+            <div class="big" id="temp">--°C</div>
+            <div class="small" id="condition">Loading…</div>
+          </div>
+          <div class="small" style="text-align:right">
+            <div id="loc">—</div>
+            <div id="time">—</div>
+          </div>
+        </div>
+        <div style="height:8px"></div>
+        <div class="row" id="forecast" style="gap:6px;flex-wrap:wrap"></div>
+      </section>
+
+      <section class="card" id="pricesCard">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:14px;color:var(--muted)">Prices</div>
+          <div style="font-size:12px;color:var(--muted)">BTC · Stocks</div>
+        </div>
+        <div style="height:10px"></div>
+        <div id="prices" style="display:flex;flex-direction:column;gap:8px"></div>
+      </section>
+
+      <section class="card" style="grid-column:1/3;display:flex;flex-direction:column;gap:8px;align-items:stretch">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:14px;color:var(--muted)">Summary</div>
+          <div style="font-size:12px;color:var(--muted)" id="updatedAt">Updated: —</div>
+        </div>
+        <div id="summary" style="font-size:14px;color:var(--muted)">Loading…</div>
+      </section>
+    </main>
+
+    <footer>
+      <div>Designed for low-end devices. Host this file and point your kiosk app to it (WallPanel, Fully Kiosk, or via local file).</div>
+    </footer>
+  </div>
+
+  <!-- Settings overlay -->
+  <div id="settings">
+    <div class="panel">
+      <h3 style="margin:0 0 8px 0">Dashboard Settings</h3>
+      <div class="field">
+        <label>Latitude, Longitude (comma separated)</label>
+        <input id="latlon" placeholder="50.0755,14.4378">
+      </div>
+      <div class="field">
+        <label>Stock symbols (comma separated — e.g. AAPL,MSFT,AMZN)</label>
+        <input id="stocks" placeholder="SPY,TSLA">
+      </div>
+      <div class="field">
+        <label>Refresh interval (seconds)</label>
+        <input id="refresh" type="number" min="10" value="30">
+      </div>
+      <div class="field">
+        <label>Temperature unit</label>
+        <select id="tempUnit"><option value="C">Celsius</option><option value="F">Fahrenheit</option></select>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn" id="save">Save</button>
+        <button class="btn" id="close">Close</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">APIs used: Open-Meteo (weather), CoinGecko (BTC), Yahoo Finance (quotes). If CORS blocks, host this file on a server (GitHub Pages) or use a simple proxy.</div>
+    </div>
+  </div>
+
+  <script>
+    // Defaults (friendly for Czech/Brno)
+    const defaults = {
+      latlon: localStorage.latlon || '49.1951,16.6068',
+      stocks: localStorage.stocks || 'SPY,TSLA',
+      refresh: Number(localStorage.refresh) || 30,
+      tempUnit: localStorage.tempUnit || 'C'
+    };
+
+    // Elements
+    const tempEl = document.getElementById('temp');
+    const condEl = document.getElementById('condition');
+    const locEl = document.getElementById('loc');
+    const timeEl = document.getElementById('time');
+    const forecastEl = document.getElementById('forecast');
+    const pricesEl = document.getElementById('prices');
+    const summaryEl = document.getElementById('summary');
+    const updatedAtEl = document.getElementById('updatedAt');
+    const refreshLabel = document.getElementById('refreshLabel');
+
+    // Settings UI
+    const settings = document.getElementById('settings');
+    const gear = document.getElementById('gear');
+    const saveBtn = document.getElementById('save');
+    const closeBtn = document.getElementById('close');
+    document.getElementById('latlon').value = defaults.latlon;
+    document.getElementById('stocks').value = defaults.stocks;
+    document.getElementById('refresh').value = defaults.refresh;
+    document.getElementById('tempUnit').value = defaults.tempUnit;
+    refreshLabel.textContent = defaults.refresh + 's';
+
+    gear.addEventListener('click', ()=> settings.style.display = 'flex');
+    closeBtn.addEventListener('click', ()=> settings.style.display = 'none');
+    saveBtn.addEventListener('click', ()=>{
+      const latlon = document.getElementById('latlon').value.trim();
+      const stocks = document.getElementById('stocks').value.trim();
+      const refresh = Number(document.getElementById('refresh').value) || 30;
+      const tempUnit = document.getElementById('tempUnit').value;
+      localStorage.latlon = latlon;
+      localStorage.stocks = stocks;
+      localStorage.refresh = refresh;
+      localStorage.tempUnit = tempUnit;
+      refreshLabel.textContent = refresh + 's';
+      settings.style.display = 'none';
+      start();
+    });
+
+    // Utilities
+    function fmtNum(n){return n===null||n===undefined?'-':(Math.round(n*100)/100).toLocaleString()}
+    function toF(c){return c*9/5+32}
+    function nowISO(){return new Date().toLocaleString()}
+
+    // Data fetchers
+    async function fetchWeather(lat, lon){
+      // Open-Meteo: hourly temperature + daily weathercode
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('Weather fetch failed');
+      return res.json();
+    }
+
+    async function fetchBTC(){
+      // CoinGecko simple price
+      const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,eur&include_24hr_change=true';
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('BTC fetch failed');
+      return res.json();
+    }
+
+    async function fetchQuotes(symbols){
+      const q = encodeURIComponent(symbols.join(','));
+      const proxy = "https://corsproxy.io/?";
+      const url = proxy + encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${q}`);
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('Quotes fetch failed');
+      return res.json();
+    }
+
+    // Renderers
+    async function renderAll(){
+      try{
+        const [lat,lon] = (localStorage.latlon||defaults.latlon).split(',').map(s=>s.trim());
+        const stocks = (localStorage.stocks||defaults.stocks).split(',').map(s=>s.trim()).filter(Boolean);
+        const weatherP = fetchWeather(lat,lon);
+        const btcP = fetchBTC();
+        const quotesP = stocks.length? fetchQuotes(stocks) : Promise.resolve(null);
+
+        const [weather, btc, quotes] = await Promise.all([weatherP, btcP, quotesP]);
+
+        // Weather
+        if(weather && weather.current_weather){
+          const cw = weather.current_weather;
+          let tC = cw.temperature;
+          const unit = localStorage.tempUnit||defaults.tempUnit;
+          let displayTemp = unit === 'F' ? Math.round(toF(tC)) + '°F' : Math.round(tC) + '°C';
+          tempEl.textContent = displayTemp;
+          condEl.textContent = `Wind: ${cw.windspeed} km/h · Dir: ${cw.winddirection}° · Wcode ${cw.weathercode}`;
+          locEl.textContent = `Lat ${lat}, Lon ${lon}`;
+          timeEl.textContent = `Obs: ${new Date(cw.time).toLocaleTimeString()}`;
+
+          // Daily forecast small
+          forecastEl.innerHTML = '';
+          if(weather.daily){
+            const days = Math.min(3, weather.daily.time.length);
+            for(let i=0;i<days;i++){
+              const d = document.createElement('div');
+              d.style.minWidth='85px';
+              d.style.padding='6px';
+              d.style.background='rgba(255,255,255,0.02)';
+              d.style.borderRadius='6px';
+              d.innerHTML = `<div style="font-size:13px">${weather.daily.time[i].slice(5)}</div><div style="font-weight:700">${Math.round(weather.daily.temperature_2m_max[i])} / ${Math.round(weather.daily.temperature_2m_min[i])}°</div>`;
+              forecastEl.appendChild(d);
+            }
+          }
+        }
+
+        // BTC
+        pricesEl.innerHTML='';
+        if(btc && btc.bitcoin){
+          const btcUSD = btc.bitcoin.usd;
+          const btcEUR = btc.bitcoin.eur;
+          const change24 = btc.bitcoin.usd_24h_change;
+          const wrap = document.createElement('div'); wrap.className='price';
+          wrap.innerHTML = `<div class="sym">Bitcoin</div><div class="val">$${fmtNum(btcUSD)}</div><div class="chg">24h: ${fmtNum(change24)}%</div>`;
+          pricesEl.appendChild(wrap);
+        }
+
+        // Stocks
+        if(quotes && quotes.quoteResponse && quotes.quoteResponse.result){
+          for(const q of quotes.quoteResponse.result){
+            const el = document.createElement('div'); el.className='price';
+            const change = q.regularMarketChangePercent;
+            el.innerHTML = `<div class="sym">${q.symbol}</div><div class="val">${fmtNum(q.regularMarketPrice)}</div><div class="chg">${change?change.toFixed(2):'-'}%</div>`;
+            pricesEl.appendChild(el);
+          }
+        }
+
+        // Summary
+        updatedAtEl.textContent = 'Updated: ' + nowISO();
+        summaryEl.textContent = `Weather: ${tempEl.textContent} · BTC: ${pricesEl.firstChild?pricesEl.firstChild.querySelector('.val').textContent:'-'} · Stocks: ${localStorage.stocks||defaults.stocks}`;
+      }catch(err){
+        console.error(err);
+        summaryEl.textContent = 'Error: ' + (err.message||err);
+      }
+    }
+
+    // Auto-refresh
+    let timer = null;
+    function start(){
+      if(timer) clearInterval(timer);
+      const interval = Number(localStorage.refresh) || defaults.refresh;
+      renderAll();
+      timer = setInterval(renderAll, interval*1000);
+      refreshLabel.textContent = interval + 's';
+    }
+
+    // Start on load
+    start();
+
+    // Keyboard wake: press R to reload
+    window.addEventListener('keydown', (e)=>{ if(e.key==='r' || e.key==='R') renderAll(); });
+
+    // Try to hide mouse cursor after a few seconds (for kiosk look)
+    let hideTimer;
+    function hideCursor(){ document.body.style.cursor='none'; }
+    function showCursor(){ document.body.style.cursor='default'; clearTimeout(hideTimer); hideTimer = setTimeout(hideCursor,3000); }
+    window.addEventListener('mousemove', showCursor);
+    hideTimer = setTimeout(hideCursor,3000);
+  </script>
+</body>
+</html>
